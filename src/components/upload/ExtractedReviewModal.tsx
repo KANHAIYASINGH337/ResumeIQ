@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, FileCheck, User, Mail, Phone, MapPin, Briefcase, GraduationCap, Code, AlertTriangle } from 'lucide-react';
-import { ResumeData } from '../../types/resume';
+import { ResumeData, sanitizeResume } from '../../types/resume';
 
 interface ExtractedReviewModalProps {
   resume: ResumeData;
@@ -15,8 +15,14 @@ export const ExtractedReviewModal: React.FC<ExtractedReviewModalProps> = ({
   onClose,
   onSaveAndAnalyze
 }) => {
-  const [formData, setFormData] = useState<ResumeData>(JSON.parse(JSON.stringify(resume)));
+  const [formData, setFormData] = useState<ResumeData>(() => sanitizeResume(resume));
   const [activeTab, setActiveTab] = useState<'info' | 'summary' | 'skills' | 'experience' | 'education'>('info');
+
+  useEffect(() => {
+    if (resume) {
+      setFormData(sanitizeResume(resume));
+    }
+  }, [resume]);
 
   if (!isOpen) return null;
 

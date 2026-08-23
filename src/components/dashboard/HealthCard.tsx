@@ -67,31 +67,45 @@ export const HealthCard: React.FC<HealthCardProps> = ({
 
         {/* Right 6 Category Progress Bars */}
         <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {categories.map(cat => (
-            <div
-              key={cat.id}
-              onClick={() => onNavigateTab('ats')}
-              className="p-3 sm:p-3.5 rounded-xl bg-slate-800/40 hover:bg-slate-800/80 border border-slate-800 transition cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="font-semibold text-slate-200 group-hover:text-brand-300 transition-colors truncate">
-                  {cat.name}
-                </span>
-                <span className="font-mono text-slate-400 text-[11px] shrink-0 ml-2">
-                  {cat.score} / {cat.maxScore} pts
-                </span>
+          {Object.values(categories).map((cat, idx) => {
+            const colors = [
+              'bg-emerald-500',
+              'bg-brand-500',
+              'bg-sky-500',
+              'bg-indigo-500',
+              'bg-purple-500',
+              'bg-amber-500'
+            ];
+            const colorClass = colors[idx % colors.length];
+            const summaryNote = cat.findings[0] || cat.recommendations[0] || 'Evaluated against ATS algorithmic rules.';
+
+            return (
+              <div
+                key={cat.name}
+                onClick={() => onNavigateTab('ats')}
+                className="p-3 sm:p-3.5 rounded-xl bg-slate-800/40 hover:bg-slate-800/80 border border-slate-800 transition cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-semibold text-slate-200 group-hover:text-brand-300 transition-colors truncate">
+                    {cat.name}
+                  </span>
+                  <span className="font-mono text-slate-400 text-[11px] shrink-0 ml-2">
+                    {cat.score} / {cat.maxScore} pts
+                  </span>
+                </div>
+                <ProgressBar
+                  value={cat.score}
+                  max={cat.maxScore}
+                  colorClass={colorClass}
+                  size="sm"
+                  showPercentage={false}
+                />
+                <p className="text-[10.5px] text-slate-400 mt-1 line-clamp-1">
+                  {summaryNote}
+                </p>
               </div>
-              <ProgressBar
-                value={cat.score}
-                max={cat.maxScore}
-                variant={cat.percentage >= 80 ? 'success' : cat.percentage >= 60 ? 'warning' : 'danger'}
-                size="sm"
-              />
-              <p className="text-[10.5px] text-slate-400 mt-1 line-clamp-1">
-                {cat.summary}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
       </div>

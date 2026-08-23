@@ -25,6 +25,16 @@ export interface RecruiterScanItem {
   note: string;
 }
 
+export interface ATSStats {
+  wordCount: number;
+  actionVerbsCount: number;
+  metricsCount: number;
+  skillsCount: number;
+  bulletCount: number;
+  avgBulletLength: number;
+  readingTimeSeconds: number;
+}
+
 export interface ATSScoreResult {
   overallScore: number; // 0 - 100
   grade: 'A+' | 'A' | 'B' | 'C' | 'D';
@@ -39,15 +49,7 @@ export interface ATSScoreResult {
   };
   ruleChecks: ATSRuleCheck[];
   recruiterScan: RecruiterScanItem[];
-  stats: {
-    wordCount: number;
-    actionVerbsCount: number;
-    metricsCount: number;
-    skillsCount: number;
-    bulletCount: number;
-    avgBulletLength: number;
-    readingTimeSeconds: number;
-  };
+  stats: ATSStats;
   criticalIssues: string[];
   topRecommendations: string[];
 }

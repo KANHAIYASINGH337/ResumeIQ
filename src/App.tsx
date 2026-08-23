@@ -98,10 +98,12 @@ export function App() {
       const rawText = await extractTextFromFile(file);
       const parsedResume = parseResumeText(rawText, file.name);
       setResume(parsedResume);
+      const ats = calculateATSScore(parsedResume);
+      setAtsResult(ats);
       setIsReviewModalOpen(true);
     } catch (err) {
       console.error('File parsing failed:', err);
-      alert('Could not parse resume file. Please ensure it is a valid PDF or DOCX.');
+      alert('Could not parse resume file. Please ensure it is a valid PDF, DOCX, or TXT format.');
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +114,13 @@ export function App() {
     setIsReviewModalOpen(false);
     processResumeData(updated, true);
     setActiveTab('dashboard');
+  };
+
+  const handleCloseReviewModal = () => {
+    setIsReviewModalOpen(false);
+    if (resume) {
+      processResumeData(resume, true);
+    }
   };
 
   // Try Demo Handler
@@ -440,7 +449,7 @@ export function App() {
         <ExtractedReviewModal
           resume={resume}
           isOpen={isReviewModalOpen}
-          onClose={() => setIsReviewModalOpen(false)}
+          onClose={handleCloseReviewModal}
           onSaveAndAnalyze={handleConfirmExtractedData}
         />
       )}

@@ -1,4 +1,4 @@
-import { ResumeData, PersonalInfo, Experience, Education, Project, SkillCategory, Certification } from '../types/resume';
+import { ResumeData, PersonalInfo, Experience, Education, Project, SkillCategory, Certification, sanitizeResume } from '../types/resume';
 
 // Comprehensive Skill Dictionary for Intelligent Auto-Categorization
 const SKILL_DICT = {
@@ -10,6 +10,8 @@ const SKILL_DICT = {
   coreCS: ['data structures', 'data structures & algorithms', 'dsa', 'algorithms', 'object-oriented programming', 'oop', 'dbms', 'operating systems', 'os', 'computer networks', 'networking', 'system design', 'distributed systems', 'mvc', 'mvc architecture', 'rest architecture', 'design patterns']
 };
 
+type SkillCategoryKey = keyof typeof SKILL_DICT;
+
 export async function extractTextFromFile(file: File): Promise<string> {
   const fileType = file.name.split('.').pop()?.toLowerCase();
 
@@ -18,22 +20,29 @@ export async function extractTextFromFile(file: File): Promise<string> {
       const arrayBuffer = await file.arrayBuffer();
       const mammoth = await import('mammoth');
       const result = await mammoth.extractRawText({ arrayBuffer });
-      return result.value || '';
+      if (result.value && result.value.trim().length > 0) {
+        return result.value;
+      }
     } catch (err) {
       console.warn('DOCX extraction fallback:', err);
-      return await file.text();
     }
+    return await file.text();
   }
 
   if (fileType === 'pdf') {
     try {
       const pdfjsLib = await import('pdfjs-dist');
       if (pdfjsLib.GlobalWorkerOptions) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '4.10.38'}/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version || '4.10.38'}/build/pdf.worker.min.mjs`;
       }
 
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const loadingTask = pdfjsLib.getDocument({
+        data: new Uint8Array(arrayBuffer),
+        useSystemFonts: true,
+        isEvalSupported: false
+      });
+      const pdf = await loadingTask.promise;
       let fullText = '';
 
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -45,15 +54,36 @@ export async function extractTextFromFile(file: File): Promise<string> {
         fullText += pageText + '\n';
       }
 
-      return fullText;
+      if (fullText.trim().length > 20) {
+        return fullText;
+      }
     } catch (err) {
-      console.error('PDF parsing failed:', err);
-      throw new Error('Could not parse PDF content. Please paste resume plain text.');
+      console.warn('PDF parsing with primary worker failed, attempting fallback text extraction:', err);
+    }
+
+    try {
+      // Fallback: decode text strings from PDF binary stream
+      const buffer = await file.arrayBuffer();
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      const rawString = decoder.decode(buffer);
+      const textMatches = rawString.match(/\(([^()]+)\)/g);
+      if (textMatches && textMatches.length > 10) {
+        const extracted = textMatches.map(m => m.slice(1, -1)).join(' ');
+        if (extracted.trim().length > 50) {
+          return extracted;
+        }
+      }
+    } catch (fallbackErr) {
+      console.warn('Binary stream text decoding failed:', fallbackErr);
     }
   }
 
   // Plain text fallback
-  return await file.text();
+  try {
+    return await file.text();
+  } catch {
+    return '';
+  }
 }
 
 export function parseResumeText(rawText: string, originalFileName: string = 'My_Resume'): ResumeData {
@@ -94,7 +124,7 @@ export function parseResumeText(rawText: string, originalFileName: string = 'My_
   const certifications = extractCertifications(sections.certifications || rawText);
   const achievements = extractAchievements(sections.achievements || rawText);
 
-  return {
+  return sanitizeResume({
     id: `resume-${Date.now()}`,
     versionName: originalFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') || 'Optimized Resume',
     updatedAt: new Date().toISOString(),
@@ -105,8 +135,9 @@ export function parseResumeText(rawText: string, originalFileName: string = 'My_
     education,
     projects,
     certifications,
-    achievements
-  };
+    achievements,
+    rawText
+  });
 }
 
 // -------------------------------------------------------------
@@ -220,12 +251,13 @@ function extractSkillsSection(rawText: string, skillText: string): SkillCategory
     backend: [],
     database: [],
     tools: [],
-    coreCS: []
+    coreCS: [],
+    softSkills: []
   };
 
-  (Object.keys(SKILL_DICT) as (keyof SkillCategory)[]).forEach(category => {
+  (Object.keys(SKILL_DICT) as SkillCategoryKey[]).forEach((category: SkillCategoryKey) => {
     const list = SKILL_DICT[category];
-    const matched = list.filter(keyword => {
+    const matched = list.filter((keyword: string) => {
       const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(?:\\b|[^a-zA-Z0-9])${escaped}(?:\\b|[^a-zA-Z0-9])`, 'i');
       return regex.test(targetText);

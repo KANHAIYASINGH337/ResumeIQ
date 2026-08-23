@@ -33,7 +33,7 @@ export const QuickMetrics: React.FC<QuickMetricsProps> = ({
     },
     {
       label: 'Quantified Metrics',
-      value: stats.quantifiableBulletsCount,
+      value: stats.metricsCount,
       subtext: 'Impact statements',
       icon: <FileText className="w-4 h-4 text-sky-400" />,
       color: 'border-sky-500/20 bg-sky-950/10',
