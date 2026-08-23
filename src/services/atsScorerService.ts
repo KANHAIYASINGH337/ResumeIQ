@@ -1,4 +1,4 @@
-import { ResumeData } from '../types/resume';
+import { ResumeData, sanitizeResume } from '../types/resume';
 import { ATSScoreResult, ATSCategoryScore, ATSRuleCheck, RecruiterScanItem } from '../types/ats';
 
 const STRONG_ACTION_VERBS = [
@@ -13,18 +13,23 @@ const WEAK_WORDS = [
   'participated in', 'handled tasks', 'various things'
 ];
 
-export function calculateATSScore(resume: ResumeData): ATSScoreResult {
+export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
+  const resume = sanitizeResume(rawResume);
   // Aggregate text for metrics & analysis
   const bullets: string[] = [];
-  resume.experience.forEach(e => bullets.push(...e.bullets));
-  resume.projects.forEach(p => bullets.push(...p.bullets));
+  (resume.experience || []).forEach(e => {
+    if (Array.isArray(e.bullets)) bullets.push(...e.bullets);
+  });
+  (resume.projects || []).forEach(p => {
+    if (Array.isArray(p.bullets)) bullets.push(...p.bullets);
+  });
   const fullText = [
-    resume.personalInfo.fullName,
+    resume.personalInfo.fullName || '',
     resume.personalInfo.headline || '',
-    resume.summary,
+    resume.summary || '',
     bullets.join(' '),
-    resume.education.map(e => `${e.degree} ${e.institution}`).join(' '),
-    Object.values(resume.skills).flat().join(' ')
+    (resume.education || []).map(e => `${e.degree || ''} ${e.institution || ''}`).join(' '),
+    Object.values(resume.skills || {}).flat().join(' ')
   ].join(' ');
 
   const words = fullText.match(/\b[A-Za-z0-9+#.-]+\b/g) || [];

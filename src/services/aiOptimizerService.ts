@@ -1,4 +1,4 @@
-import { ResumeData, Project } from '../types/resume';
+import { ResumeData, Project, sanitizeResume } from '../types/resume';
 import { AIOptimizationResult, BulletSuggestion, SummaryOptimization, ProjectAnalysis } from '../types/ai';
 
 export interface AIServiceConfig {
@@ -7,9 +7,10 @@ export interface AIServiceConfig {
 }
 
 export async function generateAIOptimizations(
-  resume: ResumeData,
+  rawResume: ResumeData,
   config?: AIServiceConfig
 ): Promise<AIOptimizationResult> {
+  const resume = sanitizeResume(rawResume);
   // If user configured a Gemini / OpenAI API key, attempt live call
   if (config && config.apiKey && config.provider !== 'offline') {
     try {
@@ -27,12 +28,13 @@ export async function generateAIOptimizations(
   return generateLocalOptimizations(resume);
 }
 
-function generateLocalOptimizations(resume: ResumeData): AIOptimizationResult {
+function generateLocalOptimizations(rawResume: ResumeData): AIOptimizationResult {
+  const resume = sanitizeResume(rawResume);
   const bulletSuggestions: BulletSuggestion[] = [];
 
   // Optimize Experience Bullets
-  resume.experience.forEach(exp => {
-    exp.bullets.forEach((bullet, idx) => {
+  (resume.experience || []).forEach(exp => {
+    (exp.bullets || []).forEach((bullet, idx) => {
       const suggestion = optimizeSingleBullet(bullet, 'experience', `${exp.role} at ${exp.company}`, `exp-${exp.id}-${idx}`);
       if (suggestion) {
         bulletSuggestions.push(suggestion);

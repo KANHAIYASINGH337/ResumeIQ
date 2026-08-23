@@ -1,4 +1,4 @@
-import { ResumeData } from '../types/resume';
+import { ResumeData, sanitizeResume } from '../types/resume';
 import { AnalysisHistoryItem } from '../types/ai';
 
 const HISTORY_KEY = 'resumeiq_analysis_history';
@@ -8,8 +8,14 @@ const API_CONFIG_KEY = 'resumeiq_api_config';
 export function getAnalysisHistory(): AnalysisHistoryItem[] {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(item => ({
+      ...item,
+      resumeData: sanitizeResume(item.resumeData)
+    })) : [];
+  } catch (e) {
+    console.warn('Could not read history:', e);
     return [];
   }
 }
@@ -58,7 +64,8 @@ export function saveActiveResumeDraft(resume: ResumeData): void {
 export function loadActiveResumeDraft(): ResumeData | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    return sanitizeResume(JSON.parse(raw));
   } catch {
     return null;
   }
