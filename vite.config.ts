@@ -9,15 +9,6 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          pdf: ['jspdf', 'html2canvas'],
-          icons: ['lucide-react']
-        }
-      }
-    }
+    chunkSizeWarningLimit: 1500
   }
 });
