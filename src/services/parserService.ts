@@ -412,103 +412,145 @@ function extractExperienceSection(expText: string): Experience[] {
   }
 
   const cleanExp = expText.replace(/^(?:work\s+experience|professional\s+experience|experience)[:\s]*/i, '').trim();
-  const paragraphs = cleanExp.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-
-  if (paragraphs.length === 0) return [];
+  const lines = cleanExp.split('\n').map(l => l.trim()).filter(Boolean);
 
   const experiences: Experience[] = [];
+  let currentExp: Partial<Experience> | null = null;
+  let currentBullets: string[] = [];
 
-  paragraphs.forEach((p, idx) => {
-    const lines = p.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length === 0) return;
+  const pushCurrent = () => {
+    if (currentExp && currentExp.role) {
+      experiences.push({
+        id: `exp-${experiences.length + 1}`,
+        company: currentExp.company || 'Engineering Org',
+        role: currentExp.role.slice(0, 50),
+        startDate: currentExp.startDate || '2023',
+        endDate: currentExp.endDate || 'Present',
+        current: currentExp.current ?? true,
+        bullets: currentBullets.length > 0 ? currentBullets : [
+          'Engineered responsive web applications and REST APIs using modern TypeScript frameworks.',
+          'Collaborated across cross-functional engineering teams to deliver production features on schedule.'
+        ]
+      });
+      currentExp = null;
+      currentBullets = [];
+    }
+  };
 
-    const firstLine = lines[0];
-    // Ignore lines that look like whole resume dumps
-    if (firstLine.length > 100 || firstLine.includes('@')) return;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^(?:projects|skills|education|certifications|technical\s+skills):/i.test(line)) break;
+    if (line.includes('@')) continue;
 
-    const roleMatch = firstLine.match(/([a-zA-Z\s]+)(?:at|@|[-–|])\s*([a-zA-Z0-9\s]+)/i);
-    const role = roleMatch ? roleMatch[1].trim() : firstLine.replace(/^[•\-*|]\s*/, '').trim();
-    const company = roleMatch ? roleMatch[2].trim() : 'Tech Organization';
+    const isBullet = /^[•\-*|]/.test(line) || (currentExp && line.length > 35 && !line.includes('|') && !line.includes('—'));
 
-    const bullets = lines.slice(1)
-      .filter(l => l.length > 8 && l.length < 250 && !l.includes('@') && !/^(?:education|skills|projects):/i.test(l))
-      .map(l => l.replace(/^[•\-*|]\s*/, '').trim());
+    if (isBullet && currentExp) {
+      const cleanBullet = line.replace(/^[•\-*|]\s*/, '').trim();
+      if (cleanBullet.length > 8 && cleanBullet.length < 350) {
+        currentBullets.push(cleanBullet);
+      }
+    } else {
+      pushCurrent();
 
-    experiences.push({
-      id: `exp-${idx + 1}`,
-      company: company.slice(0, 50) || 'Tech Org',
-      role: role.slice(0, 50) || 'Software Engineer',
-      startDate: '2023',
-      endDate: 'Present',
-      current: true,
-      bullets: bullets.length > 0 ? bullets : [
-        'Engineered responsive web applications and REST APIs using modern TypeScript frameworks.',
-        'Collaborated across cross-functional engineering teams to deliver production features on schedule.'
-      ]
-    });
-  });
+      const roleMatch = line.match(/([a-zA-Z\s]+)(?:at|@|[-–|])\s*([a-zA-Z0-9\s]+)/i);
+      const role = roleMatch ? roleMatch[1].trim() : line.replace(/^[•\-*|]\s*/, '').trim();
+      const company = roleMatch ? roleMatch[2].trim() : 'Tech Company';
+
+      const yearMatch = line.match(/(?:20\d{2}|19\d{2})\s*(?:[-–—to\s]+)\s*(?:20\d{2}|19\d{2}|present)/i);
+      let startDate = '2023';
+      let endDate = 'Present';
+      if (yearMatch) {
+        const parts = yearMatch[0].split(/[-–—to\s]+/);
+        startDate = parts[0]?.trim() || '2023';
+        endDate = parts[1]?.trim() || 'Present';
+      }
+
+      if (role && role.length > 2 && role.length < 60) {
+        currentExp = {
+          role,
+          company: company.slice(0, 50),
+          startDate,
+          endDate,
+          current: /present|current/i.test(endDate)
+        };
+      }
+    }
+  }
+
+  pushCurrent();
 
   return experiences.slice(0, 4);
 }
 
 function extractProjectsSection(projText: string, skills: SkillCategory): Project[] {
   if (!projText || projText.trim().length === 0) {
-    return [
-      {
-        id: 'proj-1',
-        title: 'ElderGuard AI — Elderly Health Monitoring Platform',
-        techStack: ['React.js', 'FastAPI', 'MediaPipe', 'REST APIs'],
-        bullets: [
-          'Engineered a React.js dashboard to visualize real-time heart rate and SpO2 metrics with live WebSocket push.',
-          'Architected UI modules for active alerts, 24-hour vitals trend charts, medicine schedule, and emergency contacts.',
-          'Interfaced with 10+ FastAPI endpoints for health data pipeline, ensuring reliable AI telemetry flow.'
-        ],
-        liveUrl: 'https://github.com/example/elderguard-ai',
-        date: '2024'
-      }
-    ];
+    return [];
   }
 
   const cleanProj = projText.replace(/^(?:technical\s+projects|projects)[:\s]*/i, '').trim();
-  const paragraphs = cleanProj.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const lines = cleanProj.split('\n').map(l => l.trim()).filter(Boolean);
 
   const projects: Project[] = [];
+  let currentProject: Partial<Project> | null = null;
+  let currentBullets: string[] = [];
 
-  paragraphs.forEach((p, idx) => {
-    const lines = p.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length === 0) return;
-
-    const firstLine = lines[0];
-    if (firstLine.includes('@') || /^(?:education|technical skills|summary):/i.test(firstLine)) return;
-
-    // Extract title, tech stack, and link from header
-    const titleParts = firstLine.split(/[|•]/);
-    const title = titleParts[0]?.replace(/^[•\-*|]\s*/, '').trim().slice(0, 65);
-
-    let techStack: string[] = [];
-    if (titleParts.length > 1) {
-      techStack = titleParts[1].split(',').map(s => s.trim()).filter(s => s.length > 1 && s.length < 25);
-    } else {
-      techStack = skills.frontend.slice(0, 2).concat(skills.backend.slice(0, 2));
-    }
-
-    const bullets = lines.slice(1)
-      .filter(l => l.length > 10 && l.length < 300 && !/^(?:education|skills|certifications):/i.test(l))
-      .map(l => l.replace(/^[•\-*|]\s*/, '').trim());
-
-    if (title && title.length > 2) {
+  const pushCurrent = () => {
+    if (currentProject && currentProject.title) {
       projects.push({
-        id: `proj-${idx + 1}`,
-        title,
-        techStack: techStack.length > 0 ? techStack : ['React.js', 'Node.js', 'MongoDB'],
-        bullets: bullets.length > 0 ? bullets : [
-          'Developed a scalable web application utilizing modern component architecture and REST APIs.',
-          'Implemented responsive user interface design and modular state management.'
+        id: `proj-${projects.length + 1}`,
+        title: currentProject.title.slice(0, 65),
+        techStack: currentProject.techStack && currentProject.techStack.length > 0 ? currentProject.techStack : ['React.js', 'Node.js', 'MongoDB'],
+        bullets: currentBullets.length > 0 ? currentBullets : [
+          'Developed a scalable web application utilizing modern component architecture and REST APIs.'
         ],
-        date: '2024'
+        liveUrl: currentProject.liveUrl,
+        date: currentProject.date || '2024'
       });
+      currentProject = null;
+      currentBullets = [];
     }
-  });
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^(?:certifications|achievements|education|skills|technical\s+skills):/i.test(line)) break;
+    if (line.includes('@')) continue;
+
+    const isBullet = /^[•\-*|]/.test(line) || (currentProject && line.length > 35 && !line.includes('|') && !line.includes('—'));
+
+    if (isBullet && currentProject) {
+      const cleanBullet = line.replace(/^[•\-*|]\s*/, '').trim();
+      if (cleanBullet.length > 8 && cleanBullet.length < 350) {
+        currentBullets.push(cleanBullet);
+      }
+    } else {
+      pushCurrent();
+
+      const parts = line.split(/[|•]/);
+      const title = parts[0]?.replace(/^[•\-*|]\s*/, '').trim().slice(0, 65);
+
+      let techStack: string[] = [];
+      if (parts.length > 1) {
+        techStack = parts[1].split(',').map(s => s.replace(/\(\d{4}\)/, '').trim()).filter(s => s.length > 1 && s.length < 30);
+      } else {
+        techStack = skills.frontend.slice(0, 2).concat(skills.backend.slice(0, 2));
+      }
+
+      const yearMatch = line.match(/\b(20\d{2}|19\d{2})\b/);
+      const urlMatch = line.match(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+\.(?:vercel\.app|netlify\.app|dev|io|com)(?:\/[^\s|•]*)?/i);
+
+      if (title && title.length > 2) {
+        currentProject = {
+          title,
+          techStack: techStack.length > 0 ? techStack : ['React.js', 'Node.js'],
+          date: yearMatch ? yearMatch[0] : '2024',
+          liveUrl: urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : undefined
+        };
+      }
+    }
+  }
+
+  pushCurrent();
 
   return projects.slice(0, 4);
 }

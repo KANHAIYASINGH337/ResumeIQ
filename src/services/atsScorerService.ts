@@ -24,12 +24,15 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
     if (Array.isArray(p.bullets)) bullets.push(...p.bullets);
   });
   const fullText = [
+    resume.rawText || '',
     resume.personalInfo.fullName || '',
     resume.personalInfo.headline || '',
     resume.summary || '',
     bullets.join(' '),
-    (resume.education || []).map(e => `${e.degree || ''} ${e.institution || ''}`).join(' '),
-    Object.values(resume.skills || {}).flat().join(' ')
+    (resume.education || []).map(e => `${e.degree || ''} ${e.institution || ''} ${e.gpaOrPercentage || ''}`).join(' '),
+    Object.values(resume.skills || {}).flat().join(' '),
+    (resume.certifications || []).map(c => `${c.name} ${c.issuer}`).join(' '),
+    (resume.achievements || []).join(' ')
   ].join(' ');
 
   const words = fullText.match(/\b[A-Za-z0-9+#.-]+\b/g) || [];
@@ -53,8 +56,17 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
   const actionVerbRatio = actionVerbsFound / totalBulletCount;
 
   // 2. Metrics & Numbers analysis
-  const metricsMatches = fullText.match(/\b\d+(\.\d+)?%|\b\d+\/\d+|\b\d+\+|\b\$\d+[\d,]*|\b₹\d+[\d,]*|\b\d{2,}\s*(ms|users|requests|endpoints|teams|stars|downloads|clients|rps|kps|gb|tb|mb)\b/gi) || [];
-  const metricsCount = [...new Set(metricsMatches)].length;
+  const comprehensiveMetricRegex = /\b\d+(\.\d+)?%|\b\d+\s*\/\s*\d+|\b\d+[\d,]*\+?|\b[$€£₹]\s*\d+[\d,]*(?:\s*(?:k|m|b|lakh|crore))?|\b\d+(?:-\w+|\s*(?:ms|seconds|sec|mins|minutes|hours|hour|days|day|weeks|months|years|users|requests|reqs|endpoints|apis|teams|stars|downloads|clients|rps|qps|kps|gb|tb|mb|kb|projects|features))\b/gi;
+
+  const targetMetricsText = bullets.join(' ') + ' ' + (resume.achievements || []).join(' ') + ' ' + (resume.certifications || []).map(c => c.name).join(' ') + ' ' + (resume.rawText || '');
+  const rawMatches = targetMetricsText.match(comprehensiveMetricRegex) || [];
+  const validMetricMatches = rawMatches.filter(m => {
+    const clean = m.trim();
+    if (/^(?:19|20)\d{2}$/.test(clean)) return false;
+    if (clean.length === 10 && /^\d+$/.test(clean)) return false;
+    return true;
+  });
+  const metricsCount = [...new Set(validMetricMatches)].length;
 
   // 3. Skills count & verification in bullet points
   const allSkills = Object.values(resume.skills).flat();
