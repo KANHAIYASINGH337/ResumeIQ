@@ -49,57 +49,84 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
     }
   });
 
+  const totalBulletCount = Math.max(1, bullets.length);
+  const actionVerbRatio = actionVerbsFound / totalBulletCount;
+
   // 2. Metrics & Numbers analysis
-  const metricsMatches = fullText.match(/\b\d+(\.\d+)?%|\b\d+\/\d+|\b\d+\+|\b\$\d+[\d,]*|\b₹\d+[\d,]*|\b\d{2,}\s*(ms|users|requests|endpoints|teams|stars|downloads|clients)\b/gi) || [];
+  const metricsMatches = fullText.match(/\b\d+(\.\d+)?%|\b\d+\/\d+|\b\d+\+|\b\$\d+[\d,]*|\b₹\d+[\d,]*|\b\d{2,}\s*(ms|users|requests|endpoints|teams|stars|downloads|clients|rps|kps|gb|tb|mb)\b/gi) || [];
   const metricsCount = [...new Set(metricsMatches)].length;
 
-  // 3. Skills count
+  // 3. Skills count & verification in bullet points
   const allSkills = Object.values(resume.skills).flat();
   const skillsCount = allSkills.length;
+  let skillsDemonstratedInBullets = 0;
+  const bulletsLower = bullets.join(' ').toLowerCase();
+  allSkills.forEach(s => {
+    if (s && s.length > 2 && bulletsLower.includes(s.toLowerCase())) {
+      skillsDemonstratedInBullets++;
+    }
+  });
 
   // ----------------------------------------------------
   // CATEGORY 1: ATS Compatibility (Max 20 pts)
   // ----------------------------------------------------
-  let compatScore = 20;
+  let compatScore = 0;
   const compatFindings: string[] = [];
   const compatRecs: string[] = [];
 
+  // Contact info check (Max 4 pts)
   if (resume.personalInfo.email && resume.personalInfo.phone) {
-    compatFindings.push('Clear, machine-parsable contact information.');
+    compatScore += 4;
+    compatFindings.push('Clear, machine-parsable contact card (Email & Phone verified).');
+  } else if (resume.personalInfo.email || resume.personalInfo.phone) {
+    compatScore += 2;
+    compatRecs.push('Ensure both phone number and email address are listed in clean plain text.');
   } else {
-    compatScore -= 5;
-    compatRecs.push('Ensure phone number and email are explicitly listed in standard text format.');
+    compatRecs.push('Missing essential contact information (Email and Phone number).');
   }
 
-  if (resume.summary && resume.skills && resume.projects.length > 0 && resume.education.length > 0) {
-    compatFindings.push('Standard heading taxonomy compliant with Workday, Taleo, and Greenhouse parsers.');
+  // Section taxonomy check (Max 6 pts)
+  if (resume.summary && resume.skills && (resume.projects.length > 0 || resume.experience.length > 0) && resume.education.length > 0) {
+    compatScore += 6;
+    compatFindings.push('Standard heading hierarchy compliant with Workday, Taleo, and Greenhouse parsers.');
   } else {
-    compatScore -= 4;
-    compatRecs.push('Include standard section headers (Summary, Skills, Experience/Projects, Education).');
+    compatScore += 3;
+    compatRecs.push('Use standard industry section titles (Summary, Skills, Experience, Projects, Education).');
   }
 
-  if (wordCount < 150) {
-    compatScore -= 6;
-    compatRecs.push('Resume word count is under 150 words. Increase detail to allow ATS indexers to match your profile.');
-  } else if (wordCount > 1000) {
-    compatScore -= 3;
-    compatRecs.push('Resume length is slightly high (>1000 words). Aim for a concise 1-2 page format.');
+  // Document length calibration (Max 10 pts)
+  if (wordCount >= 350 && wordCount <= 750) {
+    compatScore += 10;
+    compatFindings.push(`Optimal document length (${wordCount} words) perfectly tailored for single/two-page ATS indexing.`);
+  } else if (wordCount >= 250 && wordCount < 350) {
+    compatScore += 7;
+    compatRecs.push(`Resume word count is slightly lean (${wordCount} words). Add more project details to increase keyword indexing.`);
+  } else if (wordCount > 750 && wordCount <= 950) {
+    compatScore += 6;
+    compatRecs.push(`Resume length is slightly high (${wordCount} words). Try to condense to under 750 words for faster recruiter processing.`);
+  } else if (wordCount > 950 && wordCount <= 1200) {
+    compatScore += 4;
+    compatRecs.push(`Resume is verbose (${wordCount} words / ~2.5 pages). Cut repetitive phrasing to fit within a strict 1-2 page standard.`);
+  } else if (wordCount > 1200) {
+    compatScore += 2;
+    compatRecs.push(`Resume length is excessive (${wordCount} words / 3+ pages). ATS and recruiters strongly penalize walls of text. Trim to under 750 words.`);
   } else {
-    compatFindings.push('Optimal document length for single/two-page ATS parsing.');
+    compatScore += 2;
+    compatRecs.push(`Resume is critically short (${wordCount} words). Elaborate on technical responsibilities and architectures.`);
   }
 
   const categoryCompatibility: ATSCategoryScore = {
     name: 'ATS Compatibility',
-    score: Math.max(5, compatScore),
+    score: Math.min(20, Math.max(3, compatScore)),
     maxScore: 20,
-    percentage: Math.round((Math.max(5, compatScore) / 20) * 100),
-    status: compatScore >= 17 ? 'excellent' : compatScore >= 13 ? 'good' : 'warning',
+    percentage: Math.round((Math.min(20, Math.max(3, compatScore)) / 20) * 100),
+    status: compatScore >= 16 ? 'excellent' : compatScore >= 12 ? 'good' : 'warning',
     findings: compatFindings,
     recommendations: compatRecs
   };
 
   // ----------------------------------------------------
-  // CATEGORY 2: Keyword Optimization (Max 25 pts)
+  // CATEGORY 2: Keyword Optimization & Context (Max 25 pts)
   // ----------------------------------------------------
   let keywordScore = 0;
   const kwFindings: string[] = [];
@@ -110,79 +137,96 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
   const dbCount = resume.skills.database.length;
   const toolCount = resume.skills.tools.length;
 
-  if (langCount >= 2) keywordScore += 6;
-  else if (langCount === 1) keywordScore += 3;
+  if (langCount >= 2) keywordScore += 4;
+  else if (langCount === 1) keywordScore += 2;
 
-  if (frameworkCount >= 3) keywordScore += 8;
-  else if (frameworkCount >= 1) keywordScore += 4;
+  if (frameworkCount >= 3) keywordScore += 4;
+  else if (frameworkCount >= 1) keywordScore += 2;
 
-  if (dbCount >= 1) keywordScore += 5;
-  if (toolCount >= 3) keywordScore += 6;
-
-  if (skillsCount >= 12) {
-    kwFindings.push(`Strong technical keyword density with ${skillsCount} verified skills.`);
-  } else {
-    kwRecs.push('Add more relevant industry tools and frameworks to increase match rates against automated filters.');
-  }
+  if (dbCount >= 1) keywordScore += 3;
+  if (toolCount >= 3) keywordScore += 3;
 
   if (resume.skills.coreCS.length >= 2) {
+    keywordScore += 3;
     kwFindings.push('Includes vital Computer Science fundamental keywords (DSA, OOP, System Design).');
+  } else {
+    kwRecs.push('Include core CS concepts (e.g. Data Structures, Algorithms, REST APIs) to pass initial recruiter filters.');
+  }
+
+  // Contextual verification (skills must be backed up by bullet points, not just a standalone list)
+  if (skillsDemonstratedInBullets >= 6) {
+    keywordScore += 8;
+    kwFindings.push(`Excellent keyword substantiation: ${skillsDemonstratedInBullets} skills are actively demonstrated in your bullet descriptions.`);
+  } else if (skillsDemonstratedInBullets >= 3) {
+    keywordScore += 5;
+    kwFindings.push(`${skillsDemonstratedInBullets} skills substantiated with practical project implementations.`);
+    kwRecs.push('Reference more of your listed technical skills directly inside your experience and project descriptions.');
+  } else {
+    keywordScore += 2;
+    kwRecs.push('Avoid isolated skill lists. Connect your technologies to real project bullet points to prove hands-on application.');
   }
 
   const categoryKeywords: ATSCategoryScore = {
     name: 'Keyword Optimization',
-    score: Math.min(25, keywordScore),
+    score: Math.min(25, Math.max(4, keywordScore)),
     maxScore: 25,
-    percentage: Math.round((Math.min(25, keywordScore) / 25) * 100),
-    status: keywordScore >= 21 ? 'excellent' : keywordScore >= 16 ? 'good' : 'warning',
+    percentage: Math.round((Math.min(25, Math.max(4, keywordScore)) / 25) * 100),
+    status: keywordScore >= 20 ? 'excellent' : keywordScore >= 14 ? 'good' : 'warning',
     findings: kwFindings,
     recommendations: kwRecs
   };
 
   // ----------------------------------------------------
-  // CATEGORY 3: Content Quality (Max 20 pts)
+  // CATEGORY 3: Content Quality & Impact (Max 20 pts)
   // ----------------------------------------------------
   let contentScore = 0;
   const contentFindings: string[] = [];
   const contentRecs: string[] = [];
 
-  // Verbs check
-  if (actionVerbsFound >= 4) {
+  // Quantified Metrics evaluation (Max 8 pts)
+  if (metricsCount >= 4) {
     contentScore += 8;
-    contentFindings.push(`${actionVerbsFound} bullet points lead with high-impact action verbs.`);
-  } else if (actionVerbsFound >= 2) {
+    contentFindings.push(`Strong quantified outcomes: ${metricsCount} numerical metrics identified (%, latency, scale, users).`);
+  } else if (metricsCount >= 2) {
     contentScore += 5;
-    contentRecs.push('Begin more bullet points with decisive action verbs (e.g., Engineered, Architected, Deployed).');
-  } else {
+    contentFindings.push(`${metricsCount} measurable performance metrics found.`);
+    contentRecs.push('Add more quantifiable results (e.g. reduced load time by 30%, handled 50k+ requests, 99.9% uptime).');
+  } else if (metricsCount === 1) {
     contentScore += 2;
-    contentRecs.push('Rewrite passive bullet points to start with strong engineering action verbs.');
+    contentRecs.push('Only 1 numerical metric detected. Recruiters heavily prioritize resumes with measurable business and engineering outcomes.');
+  } else {
+    contentRecs.push('CRITICAL: Zero quantifiable metrics found. Convert task descriptions into XYZ formula (Accomplished X, measured by Y, by doing Z).');
   }
 
-  // Metrics check
-  if (metricsCount >= 3) {
+  // Action Verbs ratio evaluation (Max 8 pts)
+  if (actionVerbRatio >= 0.60 && actionVerbsFound >= 4) {
     contentScore += 8;
-    contentFindings.push(`${metricsCount} quantifiable outcomes and impact metrics identified (%, latency, users, etc.).`);
-  } else if (metricsCount >= 1) {
+    contentFindings.push(`${actionVerbsFound} bullet points (${Math.round(actionVerbRatio * 100)}%) lead with decisive engineering power verbs.`);
+  } else if (actionVerbsFound >= 3 || actionVerbRatio >= 0.35) {
     contentScore += 4;
-    contentRecs.push('Incorporate quantifiable business or engineering metrics (e.g. reduced load time by 35%, 10+ endpoints).');
+    contentRecs.push(`Only ${actionVerbsFound} bullets start with decisive action verbs. Rewrite passive statements to lead with words like Architected, Engineered, Deployed.`);
   } else {
-    contentRecs.push('Add measurable outcomes to your projects or work experience to demonstrate real-world impact.');
+    contentScore += 1;
+    contentRecs.push('Majority of bullet points lack strong leading action verbs. Avoid starting bullets with passive phrases.');
   }
 
-  // Weak phrase penalty
-  if (weakBulletsFound > 0) {
-    contentScore = Math.max(0, contentScore - (weakBulletsFound * 2));
-    contentRecs.push(`Avoid generic filler phrases like "worked on" or "responsible for". State specific achievements.`);
-  } else {
+  // Weak phrase penalty (Max 4 pts)
+  if (weakBulletsFound === 0) {
     contentScore += 4;
+    contentFindings.push('Zero passive filler phrases ("worked on", "assisted in", "responsible for") detected.');
+  } else if (weakBulletsFound <= 2) {
+    contentScore += 1;
+    contentRecs.push(`Identified ${weakBulletsFound} weak filler phrases ("worked on", "responsible for"). Replace with authoritative ownership verbs.`);
+  } else {
+    contentRecs.push(`Heavy use of passive filler phrases (${weakBulletsFound} occurrences). Remove "responsible for" and state specific accomplishments.`);
   }
 
   const categoryContentQuality: ATSCategoryScore = {
     name: 'Content Quality',
-    score: Math.min(20, Math.max(4, contentScore)),
+    score: Math.min(20, Math.max(3, contentScore)),
     maxScore: 20,
-    percentage: Math.round((Math.min(20, Math.max(4, contentScore)) / 20) * 100),
-    status: contentScore >= 16 ? 'excellent' : contentScore >= 12 ? 'good' : 'warning',
+    percentage: Math.round((Math.min(20, Math.max(3, contentScore)) / 20) * 100),
+    status: contentScore >= 16 ? 'excellent' : contentScore >= 11 ? 'good' : 'warning',
     findings: contentFindings,
     recommendations: contentRecs
   };
@@ -195,38 +239,47 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
   const compRecs: string[] = [];
 
   if (resume.personalInfo.fullName && resume.personalInfo.email && resume.personalInfo.phone && resume.personalInfo.location) {
-    completeScore += 3;
+    completeScore += 4;
     compFindings.push('Full contact card verified (Name, Email, Phone, Location).');
-  }
-  if (resume.personalInfo.linkedInUrl || resume.personalInfo.githubUrl || resume.personalInfo.portfolioUrl) {
-    completeScore += 3;
-    compFindings.push('Live portfolio / GitHub / LinkedIn profiles linked.');
   } else {
-    compRecs.push('Add your GitHub, LinkedIn, or live portfolio URL to improve credibility.');
+    completeScore += 2;
   }
-  if (resume.summary && resume.summary.length >= 100) {
-    completeScore += 3;
-    compFindings.push('Engaging professional summary present.');
+
+  const linkCount = [resume.personalInfo.linkedInUrl, resume.personalInfo.githubUrl, resume.personalInfo.portfolioUrl].filter(Boolean).length;
+  if (linkCount >= 2) {
+    completeScore += 4;
+    compFindings.push('Multiple verified developer links (GitHub, Portfolio, LinkedIn) provided.');
+  } else if (linkCount === 1) {
+    completeScore += 2;
+    compRecs.push('Add both your GitHub profile and LinkedIn/portfolio URL to maximize recruiter verification.');
   } else {
-    compRecs.push('Add a 2-3 sentence professional summary highlighting your core stack.');
+    compRecs.push('No live GitHub or portfolio URLs detected. Technical recruiters expect active links to inspect code.');
   }
-  if (resume.education.length > 0) completeScore += 3;
-  if (resume.projects.length >= 2 || resume.experience.length >= 1) completeScore += 3;
+
+  if (resume.summary && resume.summary.length >= 80) {
+    completeScore += 3;
+    compFindings.push('Professional career summary present.');
+  } else {
+    compRecs.push('Add a concise 2-3 sentence summary front-loading your primary stack and engineering domain.');
+  }
+
+  if (resume.education.length > 0) completeScore += 2;
+  if (resume.projects.length >= 2 || resume.experience.length >= 1) completeScore += 2;
 
   const categoryCompleteness: ATSCategoryScore = {
     name: 'Resume Completeness',
-    score: Math.min(15, completeScore),
+    score: Math.min(15, Math.max(3, completeScore)),
     maxScore: 15,
-    percentage: Math.round((Math.min(15, completeScore) / 15) * 100),
-    status: completeScore >= 13 ? 'excellent' : completeScore >= 10 ? 'good' : 'warning',
+    percentage: Math.round((Math.min(15, Math.max(3, completeScore)) / 15) * 100),
+    status: completeScore >= 12 ? 'excellent' : completeScore >= 9 ? 'good' : 'warning',
     findings: compFindings,
     recommendations: compRecs
   };
 
   // ----------------------------------------------------
-  // CATEGORY 5: Formatting (Max 10 pts)
+  // CATEGORY 5: Formatting & Structure (Max 10 pts)
   // ----------------------------------------------------
-  let formatScore = 10;
+  let formatScore = 0;
   const formatFindings: string[] = [];
   const formatRecs: string[] = [];
 
@@ -234,26 +287,35 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
     ? Math.round(bullets.reduce((acc, b) => acc + b.split(/\s+/).length, 0) / bullets.length)
     : 0;
 
-  if (avgBulletLength >= 12 && avgBulletLength <= 35) {
-    formatFindings.push(`Bullet lengths are well-calibrated (avg: ${avgBulletLength} words/bullet).`);
-  } else if (avgBulletLength > 40) {
-    formatScore -= 3;
-    formatRecs.push('Some bullet points are overly verbose. Break long sentences into concise 1-2 line statements.');
+  // Bullet count & distribution (Max 5 pts)
+  if (bullets.length >= 4 && bullets.length <= 16) {
+    formatScore += 5;
+    formatFindings.push(`Balanced bullet distribution (${bullets.length} bullets across roles/projects).`);
+  } else if (bullets.length > 16) {
+    formatScore += 2;
+    formatRecs.push(`High bullet count (${bullets.length} bullets). Focus on the top 3-4 highest impact achievements per role.`);
+  } else {
+    formatScore += 2;
+    formatRecs.push('Add more detailed bullet points describing software implementation details and outcomes.');
   }
 
-  if (bullets.length >= 4) {
-    formatFindings.push('Consistent bullet list hierarchy across all experience and project entries.');
+  // Bullet length calibration (Max 5 pts)
+  if (avgBulletLength >= 12 && avgBulletLength <= 28) {
+    formatScore += 5;
+    formatFindings.push(`Bullet lengths are well calibrated (avg: ${avgBulletLength} words/bullet).`);
+  } else if (avgBulletLength > 35) {
+    formatScore += 2;
+    formatRecs.push(`Bullet points are overly long (avg: ${avgBulletLength} words). Break into concise 1-2 line statements.`);
   } else {
-    formatScore -= 2;
-    formatRecs.push('Expand bullet points with specific technical details for each project.');
+    formatScore += 3;
   }
 
   const categoryFormatting: ATSCategoryScore = {
     name: 'Formatting & Structure',
-    score: Math.max(3, formatScore),
+    score: Math.min(10, Math.max(2, formatScore)),
     maxScore: 10,
-    percentage: Math.round((Math.max(3, formatScore) / 10) * 100),
-    status: formatScore >= 8 ? 'excellent' : 'good',
+    percentage: Math.round((Math.min(10, Math.max(2, formatScore)) / 10) * 100),
+    status: formatScore >= 8 ? 'excellent' : formatScore >= 5 ? 'good' : 'warning',
     findings: formatFindings,
     recommendations: formatRecs
   };
@@ -261,34 +323,46 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
   // ----------------------------------------------------
   // CATEGORY 6: Recruiter Readability (Max 10 pts)
   // ----------------------------------------------------
-  let readScore = 10;
+  let readScore = 0;
   const readFindings: string[] = [];
   const readRecs: string[] = [];
 
   const readingTimeSeconds = Math.round((wordCount / 200) * 60);
 
-  if (wordCount >= 250 && wordCount <= 700) {
-    readFindings.push(`Ideal reading density (~${readingTimeSeconds}s total scan time).`);
+  // Scan rate evaluation (Max 5 pts)
+  if (wordCount >= 300 && wordCount <= 650) {
+    readScore += 5;
+    readFindings.push(`Ideal scan density (~${readingTimeSeconds}s total scan time).`);
+  } else if (wordCount > 650 && wordCount <= 900) {
+    readScore += 3;
+    readRecs.push('Slightly dense reading pace. Aim for 400-650 words for optimal 6-second recruiter scanning.');
+  } else if (wordCount > 900) {
+    readScore += 1;
+    readRecs.push(`Excessive length (${wordCount} words). Recruiters spend only 6-7 seconds scanning; long text risks fatigue.`);
   } else {
-    readScore -= 2;
-    readRecs.push('Calibrate resume density to fall within 300 - 650 words for optimal 6-second recruiter scanning.');
+    readScore += 2;
   }
 
-  if (resume.personalInfo.headline) {
-    readFindings.push('Clear target role positioning in header.');
+  // Headline positioning (Max 5 pts)
+  if (resume.personalInfo.headline && resume.personalInfo.headline.length > 5) {
+    readScore += 5;
+    readFindings.push(`Clear target role positioning (${resume.personalInfo.headline}).`);
+  } else {
+    readScore += 2;
+    readRecs.push('Add an explicit target role headline (e.g. Senior Full Stack Engineer) directly under your name.');
   }
 
   const categoryReadability: ATSCategoryScore = {
     name: 'Recruiter Readability',
-    score: Math.max(3, readScore),
+    score: Math.min(10, Math.max(2, readScore)),
     maxScore: 10,
-    percentage: Math.round((Math.max(3, readScore) / 10) * 100),
-    status: readScore >= 8 ? 'excellent' : 'good',
+    percentage: Math.round((Math.min(10, Math.max(2, readScore)) / 10) * 100),
+    status: readScore >= 8 ? 'excellent' : readScore >= 5 ? 'good' : 'warning',
     findings: readFindings,
     recommendations: readRecs
   };
 
-  // Total Score
+  // Total Score Calculation
   const totalScore = categoryCompatibility.score +
     categoryKeywords.score +
     categoryContentQuality.score +
@@ -296,10 +370,10 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
     categoryFormatting.score +
     categoryReadability.score;
 
-  const finalScore = Math.min(100, Math.max(10, totalScore));
+  const finalScore = Math.min(100, Math.max(15, totalScore));
 
-  const grade = finalScore >= 90 ? 'A+' : finalScore >= 80 ? 'A' : finalScore >= 70 ? 'B' : finalScore >= 60 ? 'C' : 'D';
-  const statusText = finalScore >= 85 ? 'Excellent ATS Pass Rate' : finalScore >= 70 ? 'Good / Competitive' : finalScore >= 55 ? 'Average — Needs Optimization' : 'High Risk of ATS Rejection';
+  const grade = finalScore >= 88 ? 'A+' : finalScore >= 80 ? 'A' : finalScore >= 70 ? 'B' : finalScore >= 60 ? 'C' : 'D';
+  const statusText = finalScore >= 82 ? 'Excellent ATS Pass Rate' : finalScore >= 70 ? 'Good / Competitive' : finalScore >= 55 ? 'Average — Needs Optimization' : 'High Risk of ATS Rejection';
 
   // 6-Second Recruiter Scan Simulation
   const recruiterScan: RecruiterScanItem[] = [
@@ -349,41 +423,43 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
       rule: 'Parseable Contact Card',
       passed: Boolean(resume.personalInfo.email && resume.personalInfo.phone),
       severity: 'high',
-      details: resume.personalInfo.email ? 'Email and phone formatted cleanly.' : 'Missing verified phone or email.'
+      details: resume.personalInfo.email && resume.personalInfo.phone ? 'Email and phone formatted cleanly.' : 'Missing verified phone or email in header.'
     },
     {
-      id: 'rule-headings',
+      id: 'rule-length',
       category: 'Compatibility',
-      rule: 'Standard Section Hierarchy',
-      passed: Boolean(resume.skills && resume.education.length > 0),
+      rule: 'Optimal 1-2 Page Document Length',
+      passed: wordCount >= 300 && wordCount <= 800,
       severity: 'high',
-      details: 'Recognizable section titles ensure ATS parsers don\'t drop entire categories.'
-    },
-    {
-      id: 'rule-verbs',
-      category: 'Content',
-      rule: 'Action-First Bullet Points',
-      passed: actionVerbsFound >= 3,
-      severity: 'medium',
-      details: `${actionVerbsFound} bullets start with power verbs.`,
-      fixSuggestion: 'Use words like Engineered, Deployed, Architected instead of "Worked on".'
+      details: `${wordCount} total words. ${wordCount > 800 ? 'Exceeds standard 1-2 page length.' : wordCount < 300 ? 'Underdeveloped content.' : 'Ideal ATS length.'}`,
+      fixSuggestion: wordCount > 800 ? 'Trim repetitive descriptions to fall between 400-750 words.' : undefined
     },
     {
       id: 'rule-metrics',
       category: 'Content',
       rule: 'Quantifiable Engineering Metrics',
-      passed: metricsCount >= 2,
+      passed: metricsCount >= 3,
       severity: 'high',
-      details: `${metricsCount} numerical metrics found.`,
-      fixSuggestion: 'Include percentage gains, request counts, or performance numbers.'
+      details: `${metricsCount} numerical metrics found. (Target: 3+ measurable outcomes).`,
+      fixSuggestion: 'Incorporate percentage improvements, user counts, latency reductions, or volume figures.'
     },
     {
-      id: 'rule-skills-density',
-      category: 'Keywords',
-      rule: 'Technical Keyword Breadth',
-      passed: skillsCount >= 10,
+      id: 'rule-verbs',
+      category: 'Content',
+      rule: 'Action-First Bullet Points',
+      passed: actionVerbsFound >= 4 && actionVerbRatio >= 0.45,
       severity: 'medium',
-      details: `${skillsCount} distinct technical skills indexed.`
+      details: `${actionVerbsFound} of ${totalBulletCount} bullets (${Math.round(actionVerbRatio * 100)}%) lead with power verbs.`,
+      fixSuggestion: 'Begin every bullet point with verbs like Architected, Engineered, Deployed, Optimized.'
+    },
+    {
+      id: 'rule-skills-context',
+      category: 'Keywords',
+      rule: 'Keyword Context Substantiation',
+      passed: skillsDemonstratedInBullets >= 4,
+      severity: 'medium',
+      details: `${skillsDemonstratedInBullets} skills substantiated with practical project implementations.`,
+      fixSuggestion: 'Mention your top technologies directly inside your experience and project descriptions.'
     }
   ];
 
@@ -391,13 +467,14 @@ export function calculateATSScore(rawResume: ResumeData): ATSScoreResult {
   const criticalIssues: string[] = [];
   const topRecommendations: string[] = [];
 
-  if (metricsCount === 0) criticalIssues.push('Zero quantifiable metrics detected in experience/projects.');
-  if (actionVerbsFound < 2) criticalIssues.push('Bullet points lack decisive action verbs.');
+  if (metricsCount <= 1) criticalIssues.push(`Critically low quantifiable metrics (${metricsCount} metric detected). Add measurable % and scale results.`);
+  if (wordCount > 1000) criticalIssues.push(`Resume is excessively long (${wordCount} words). Recruiters spend only 6s scanning; condense to 1-2 pages.`);
+  if (actionVerbsFound < 4 || actionVerbRatio < 0.35) criticalIssues.push(`Low action verb density (${actionVerbsFound} leading power verbs). Convert passive phrases into authoritative engineering statements.`);
   if (!resume.personalInfo.email || !resume.personalInfo.phone) criticalIssues.push('Missing crucial contact information (email/phone).');
 
-  if (kwRecs.length > 0) topRecommendations.push(...kwRecs);
   if (contentRecs.length > 0) topRecommendations.push(...contentRecs);
   if (compatRecs.length > 0) topRecommendations.push(...compatRecs);
+  if (kwRecs.length > 0) topRecommendations.push(...kwRecs);
 
   return {
     overallScore: finalScore,
