@@ -88,7 +88,7 @@ export const ClassicAtsTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 {exp.location && <div className="text-[11px] text-gray-600 mb-1">{exp.location}</div>}
                 <ul className="list-disc ml-5 text-xs text-gray-900 space-y-0.5 mt-1">
                   {exp.bullets.map((b, idx) => (
-                    <li key={idx} className="leading-relaxed">{b}</li>
+                    <li key={idx} className="leading-relaxed">{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>
@@ -120,7 +120,7 @@ export const ClassicAtsTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-5 text-xs text-gray-900 space-y-0.5 mt-1">
                   {proj.bullets.map((b, idx) => (
-                    <li key={idx} className="leading-relaxed">{b}</li>
+                    <li key={idx} className="leading-relaxed">{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>

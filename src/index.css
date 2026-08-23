@@ -41,30 +41,51 @@
 
 /* Print Rules for Clean A4 Export */
 @media print {
-  /* Hide all SaaS UI navigation and sidebars */
+  /* Hide all SaaS UI navigation, sidebars, headers, modals, and buttons */
   header,
   aside,
+  nav,
   button,
   .no-print {
     display: none !important;
   }
 
-  body {
+  body, html {
     background: #ffffff !important;
     color: #000000 !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
   }
 
-  #printable-resume-preview {
-    box-shadow: none !important;
+  main {
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
+    background: transparent !important;
+  }
+
+  /* Make sure only the printable resume document renders */
+  #printable-resume-preview {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid;
   }
 
   @page {
     size: A4 portrait;
-    margin: 8mm 10mm;
+    margin: 10mm 12mm;
   }
 }
+

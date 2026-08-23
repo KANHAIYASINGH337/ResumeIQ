@@ -143,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* 1. DESKTOP SIDEBAR (Visible on md and above) */}
-      <aside className="hidden md:block w-64 lg:w-72 shrink-0 p-4 border-r border-slate-800 bg-slate-900/60 min-h-[calc(100vh-4rem)]">
+      <aside className="hidden md:block w-64 lg:w-72 shrink-0 p-4 border-r border-slate-800 bg-slate-900/60 min-h-[calc(100vh-4rem)] no-print">
         {navContent}
       </aside>
 

@@ -62,7 +62,7 @@ export const ExecutiveTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-5 text-xs text-gray-800 space-y-1 mt-1 font-sans">
                   {exp.bullets.map((b, idx) => (
-                    <li key={idx}>{b}</li>
+                    <li key={idx}>{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>
@@ -86,7 +86,7 @@ export const ExecutiveTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-5 text-xs text-gray-800 space-y-1 mt-1 font-sans">
                   {proj.bullets.map((b, idx) => (
-                    <li key={idx}>{b}</li>
+                    <li key={idx}>{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>

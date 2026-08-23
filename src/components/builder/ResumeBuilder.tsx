@@ -64,7 +64,7 @@ export const ResumeBuilder: React.FC<ResumeBuilderProps> = ({
     <div className="space-y-6">
       
       {/* Top Header & Template Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-850 border border-slate-800 shadow-xl">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-850 border border-slate-800 shadow-xl no-print">
         <div className="flex items-center gap-3">
           <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Template Layout:</label>
           <div className="flex flex-wrap gap-1.5">
@@ -118,10 +118,10 @@ export const ResumeBuilder: React.FC<ResumeBuilderProps> = ({
       </div>
 
       {/* Main Split Grid: Left Editor & Right Live Preview */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start print:block">
         
         {/* LEFT COLUMN: Section Editor (5 cols) */}
-        <div className="xl:col-span-5 space-y-4">
+        <div className="xl:col-span-5 space-y-4 no-print">
           
           {/* Section Selector Pills */}
           <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-slate-850 border border-slate-800">
@@ -487,16 +487,16 @@ export const ResumeBuilder: React.FC<ResumeBuilderProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Live Template Preview (7 cols) */}
-        <div className="xl:col-span-7 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+        <div className="xl:col-span-7 space-y-3 print:w-full print:p-0 print:m-0">
+          <div className="flex items-center justify-between text-xs text-slate-400 px-1 no-print">
             <span className="font-semibold flex items-center gap-1.5">
               <Eye className="w-3.5 h-3.5 text-brand-400" /> Live ATS Preview
             </span>
             <span>A4 Document Geometry</span>
           </div>
 
-          <div className="rounded-2xl bg-slate-950 p-4 sm:p-6 border border-slate-800 overflow-x-auto shadow-2xl">
-            <div id="printable-resume-preview" className="shadow-2xl mx-auto origin-top transition-all">
+          <div className="rounded-2xl bg-slate-950 p-4 sm:p-6 border border-slate-800 overflow-x-auto shadow-2xl print:p-0 print:border-none print:bg-white print:shadow-none print:m-0">
+            <div id="printable-resume-preview" className="shadow-2xl mx-auto origin-top transition-all print:shadow-none print:m-0 print:w-full">
               {selectedTemplate === 'classic' && <ClassicAtsTemplate resume={resume} />}
               {selectedTemplate === 'modern' && <ModernDevTemplate resume={resume} />}
               {selectedTemplate === 'executive' && <ExecutiveTemplate resume={resume} />}

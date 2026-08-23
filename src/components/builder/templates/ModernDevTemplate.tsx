@@ -65,7 +65,7 @@ export const ModernDevTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-4 text-xs text-slate-700 space-y-0.5 mt-1">
                   {exp.bullets.map((b, idx) => (
-                    <li key={idx}>{b}</li>
+                    <li key={idx}>{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>
@@ -92,7 +92,7 @@ export const ModernDevTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-4 text-xs text-slate-700 space-y-0.5 mt-1">
                   {proj.bullets.map((b, idx) => (
-                    <li key={idx}>{b}</li>
+                    <li key={idx}>{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>

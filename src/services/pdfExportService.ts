@@ -8,24 +8,58 @@ export async function exportElementToPdf(element: HTMLElement, fileName: string 
     const jsPdfModule = await import('jspdf');
     const jsPDF = jsPdfModule.default || jsPdfModule.jsPDF;
 
+    const originalShadow = element.style.boxShadow;
+    element.style.boxShadow = 'none';
+
     const canvas = await html2canvas(element, {
-      scale: 2,
+      scale: 3, // 300 DPI high resolution
       useCORS: true,
       logging: false,
-      windowWidth: 1024
+      backgroundColor: '#ffffff',
+      windowWidth: 1024,
+      onclone: (clonedDoc) => {
+        const target = clonedDoc.getElementById('printable-resume-preview');
+        if (target) {
+          target.style.boxShadow = 'none';
+          target.style.margin = '0 auto';
+        }
+      }
     });
 
-    const imgData = canvas.toDataURL('image/png');
+    element.style.boxShadow = originalShadow;
+
+    const imgData = canvas.toDataURL('image/png', 1.0);
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4'
+      format: 'a4',
+      compress: true
     });
 
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 8; // 8mm margin
+    const contentWidth = pageWidth - (margin * 2);
+    const contentHeight = (canvas.height * contentWidth) / canvas.width;
 
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    if (contentHeight > pageHeight - (margin * 2)) {
+      // Multiple pages handling
+      let heightLeft = contentHeight;
+      let position = margin;
+
+      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, contentHeight, undefined, 'FAST');
+      heightLeft -= (pageHeight - (margin * 2));
+
+      while (heightLeft > 0) {
+        position = heightLeft - contentHeight + margin;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, contentHeight, undefined, 'FAST');
+        heightLeft -= (pageHeight - (margin * 2));
+      }
+    } else {
+      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight, undefined, 'FAST');
+    }
+
     pdf.save(fileName);
   } catch (err) {
     console.error('PDF export error, falling back to window.print():', err);

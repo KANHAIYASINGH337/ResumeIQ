@@ -64,7 +64,7 @@ export const CompactTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-4 text-[10.5px] text-gray-900 space-y-0.5 mt-0.5">
                   {exp.bullets.map((b, idx) => (
-                    <li key={idx}>{b}</li>
+                    <li key={idx}>{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>
@@ -88,7 +88,7 @@ export const CompactTemplate: React.FC<TemplateProps> = ({ resume }) => {
                 </div>
                 <ul className="list-disc ml-4 text-[10.5px] text-gray-900 space-y-0.5 mt-0.5">
                   {proj.bullets.map((b, idx) => (
-                    <li key={idx}>{b}</li>
+                    <li key={idx}>{b.replace(/^[•\-*"'\s]+/, '')}</li>
                   ))}
                 </ul>
               </div>
