@@ -406,6 +406,36 @@ function extractEducationSection(eduText: string): Education[] {
   return educations.slice(0, 3);
 }
 
+const PROJECT_ACTION_VERBS = [
+  'engineered', 'architected', 'developed', 'implemented', 'integrated', 'interfaced',
+  'built', 'designed', 'optimized', 'deployed', 'created', 'led', 'accelerated',
+  'automated', 'orchestrated', 'authored', 'established', 'scaled', 'resolved',
+  'formulated', 'streamlined', 'delivered', 'mentored', 'collaborated', 'configured',
+  'maintained', 'utilized', 'monitored', 'achieved', 'participated', 'assisted', 'worked',
+  'spearheaded', 'conducted', 'reduced', 'improved', 'increased', 'generated', 'trained'
+];
+
+function isProjectHeaderLine(line: string): boolean {
+  const clean = line.replace(/^[•\-*|\u2022\u25cf\u25cb\u25aa\u2023\u2043\uf0b7\u00b7\u25ba\u27a4\u2713\u2714\u2013\u2014>\s]+/, '').trim();
+  const firstWord = clean.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z]/g, '');
+
+  // If line starts with a past-tense action verb, it is NEVER a project title
+  if (firstWord && PROJECT_ACTION_VERBS.includes(firstWord)) {
+    return false;
+  }
+
+  // Check if line contains project separators (e.g. "Title — Description | Tech", "Title | Tech", "Title (Tech)")
+  const hasTechSeparator = /[|]\s*(?:react|node|express|fastapi|python|java|mern|mongodb|sql|mediapipe|next|vue|angular|django|flask|spring|docker|aws|tailwind|[a-z0-9])/i.test(line);
+  const hasLiveUrl = /(?:vercel\.app|netlify\.app|github\.com|render\.com|herokuapp\.com)/i.test(line);
+  const hasYearInHeader = /\((?:19|20)\d{2}\)/.test(line) || /\b(?:19|20)\d{2}\b/.test(line);
+
+  // If it has pipe + tech or live URL or clean project title with em-dash and date
+  if (hasTechSeparator || hasLiveUrl) return true;
+  if (hasYearInHeader && line.length < 100 && (line.includes('—') || line.includes('–') || line.includes('|'))) return true;
+
+  return false;
+}
+
 function extractExperienceSection(expText: string): Experience[] {
   if (!expText || expText.trim().length === 0) {
     return [];
@@ -439,17 +469,14 @@ function extractExperienceSection(expText: string): Experience[] {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^(?:projects|skills|education|certifications|technical\s+skills):/i.test(line)) break;
+    if (/^(?:projects|technical\s+projects|skills|education|certifications|technical\s+skills):/i.test(line)) break;
     if (line.includes('@')) continue;
 
-    const isBullet = /^[•\-*|]/.test(line) || (currentExp && line.length > 35 && !line.includes('|') && !line.includes('—'));
+    const clean = line.replace(/^[•\-*|\u2022\u25cf\u25cb\u25aa\u2023\u2043\uf0b7\u00b7\u25ba\u27a4\u2713\u2714\u2013\u2014>\s]+/, '').trim();
+    const firstWord = clean.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z]/g, '');
+    const isActionVerb = firstWord && PROJECT_ACTION_VERBS.includes(firstWord);
 
-    if (isBullet && currentExp) {
-      const cleanBullet = line.replace(/^[•\-*|]\s*/, '').trim();
-      if (cleanBullet.length > 8 && cleanBullet.length < 350) {
-        currentBullets.push(cleanBullet);
-      }
-    } else {
+    if (!isActionVerb && (line.includes(' at ') || line.includes(' @ ') || line.includes(' — ') || line.includes(' | '))) {
       pushCurrent();
 
       const roleMatch = line.match(/([a-zA-Z\s]+)(?:at|@|[-–|])\s*([a-zA-Z0-9\s]+)/i);
@@ -473,6 +500,10 @@ function extractExperienceSection(expText: string): Experience[] {
           endDate,
           current: /present|current/i.test(endDate)
         };
+      }
+    } else if (currentExp) {
+      if (clean.length > 8 && clean.length < 350) {
+        currentBullets.push(clean);
       }
     }
   }
@@ -499,10 +530,8 @@ function extractProjectsSection(projText: string, skills: SkillCategory): Projec
       projects.push({
         id: `proj-${projects.length + 1}`,
         title: currentProject.title.slice(0, 65),
-        techStack: currentProject.techStack && currentProject.techStack.length > 0 ? currentProject.techStack : ['React.js', 'Node.js', 'MongoDB'],
-        bullets: currentBullets.length > 0 ? currentBullets : [
-          'Developed a scalable web application utilizing modern component architecture and REST APIs.'
-        ],
+        techStack: currentProject.techStack && currentProject.techStack.length > 0 ? currentProject.techStack : ['React.js', 'Node.js'],
+        bullets: currentBullets,
         liveUrl: currentProject.liveUrl,
         date: currentProject.date || '2024'
       });
@@ -513,46 +542,53 @@ function extractProjectsSection(projText: string, skills: SkillCategory): Projec
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^(?:certifications|achievements|education|skills|technical\s+skills):/i.test(line)) break;
+    if (/^(?:certifications|achievements|education|skills|technical\s+skills|experience|work\s+experience):/i.test(line)) break;
     if (line.includes('@')) continue;
 
-    const isBullet = /^[•\-*|]/.test(line) || (currentProject && line.length > 35 && !line.includes('|') && !line.includes('—'));
+    const isHeader = isProjectHeaderLine(line);
 
-    if (isBullet && currentProject) {
-      const cleanBullet = line.replace(/^[•\-*|]\s*/, '').trim();
-      if (cleanBullet.length > 8 && cleanBullet.length < 350) {
-        currentBullets.push(cleanBullet);
-      }
-    } else {
+    if (isHeader) {
       pushCurrent();
 
-      const parts = line.split(/[|•]/);
-      const title = parts[0]?.replace(/^[•\-*|]\s*/, '').trim().slice(0, 65);
+      const parts = line.split(/[|]/).map(p => p.trim());
+      const title = parts[0]?.replace(/^[•\-*|\u2022\u25cf\u25cb\u25aa\u2023\u2043\uf0b7\u00b7\u25ba\u27a4\u2713\u2714\u2013\u2014>\s]+/, '').trim().slice(0, 65);
 
       let techStack: string[] = [];
-      if (parts.length > 1) {
-        techStack = parts[1].split(',').map(s => s.replace(/\(\d{4}\)/, '').trim()).filter(s => s.length > 1 && s.length < 30);
-      } else {
-        techStack = skills.frontend.slice(0, 2).concat(skills.backend.slice(0, 2));
+      let liveUrl: string | undefined = undefined;
+
+      const urlMatch = line.match(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+\.(?:vercel\.app|netlify\.app|dev|io|com)(?:\/[^\s|•]*)?/i);
+      if (urlMatch) {
+        liveUrl = urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`;
+      }
+
+      for (let pIdx = 1; pIdx < parts.length; pIdx++) {
+        const part = parts[pIdx];
+        if (part.includes('.app') || part.includes('.com')) continue;
+        const stackItems = part.replace(/\(\d{4}\)/g, '').split(',').map(s => s.trim()).filter(s => s.length > 1 && s.length < 30);
+        if (stackItems.length > 0) {
+          techStack.push(...stackItems);
+        }
       }
 
       const yearMatch = line.match(/\b(20\d{2}|19\d{2})\b/);
-      const urlMatch = line.match(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+\.(?:vercel\.app|netlify\.app|dev|io|com)(?:\/[^\s|•]*)?/i);
 
-      if (title && title.length > 2) {
-        currentProject = {
-          title,
-          techStack: techStack.length > 0 ? techStack : ['React.js', 'Node.js'],
-          date: yearMatch ? yearMatch[0] : '2024',
-          liveUrl: urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : undefined
-        };
+      currentProject = {
+        title: title || `Project #${projects.length + 1}`,
+        techStack: techStack.length > 0 ? techStack : ['React.js', 'Node.js'],
+        date: yearMatch ? yearMatch[0] : '2024',
+        liveUrl
+      };
+    } else if (currentProject) {
+      const cleanBullet = line.replace(/^[•\-*|\u2022\u25cf\u25cb\u25aa\u2023\u2043\uf0b7\u00b7\u25ba\u27a4\u2713\u2714\u2013\u2014>\s]+/, '').trim();
+      if (cleanBullet.length > 8) {
+        currentBullets.push(cleanBullet);
       }
     }
   }
 
   pushCurrent();
 
-  return projects.slice(0, 4);
+  return projects;
 }
 
 function extractCertifications(text: string): Certification[] {
@@ -581,9 +617,8 @@ function extractAchievements(text: string): string[] {
   const achievements: string[] = [];
 
   lines.forEach(l => {
-    if (l.length > 200) return;
-    if (/winner|rank|scored|100\/100|prize|award|gold|first\s+place|hackathon|people's\s+choice/i.test(l) && l.length < 150) {
-      achievements.push(l.replace(/^[•\-*|]\s*/, '').trim());
+    if (/winner|rank|scored|100\/100|prize|award|gold|first\s+place|hackathon|people's\s+choice|won/i.test(l) && l.length < 400) {
+      achievements.push(l.replace(/^[•\-*|\u2022\u25cf\u25cb\u25aa\u2023\u2043\uf0b7\u00b7\u25ba\u27a4\u2713\u2714\u2013\u2014>\s]+/, '').trim());
     }
   });
 
