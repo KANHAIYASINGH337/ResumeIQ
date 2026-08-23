@@ -64,6 +64,14 @@ export function loadActiveResumeDraft(): ResumeData | null {
   }
 }
 
+export function clearActiveResumeDraft(): void {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch (e) {
+    console.warn('LocalStorage clear failed:', e);
+  }
+}
+
 export interface VersionComparisonDiff {
   v1: AnalysisHistoryItem;
   v2: AnalysisHistoryItem;

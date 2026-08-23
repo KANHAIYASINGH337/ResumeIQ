@@ -35,6 +35,7 @@ import {
   deleteAnalysisItem,
   saveActiveResumeDraft,
   loadActiveResumeDraft,
+  clearActiveResumeDraft,
   loadApiConfig
 } from './services/storageService';
 
@@ -47,6 +48,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Modals
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -77,7 +79,7 @@ export function App() {
     setAiResult(ai);
 
     if (shouldSaveHistory) {
-      const historyItem = saveAnalysisToHistory(
+      saveAnalysisToHistory(
         data,
         ats.overallScore,
         ats.overallScore,
@@ -121,6 +123,15 @@ export function App() {
     setJdResult(jdRes);
 
     setActiveTab('dashboard');
+  };
+
+  // Reset to Landing / Upload fresh
+  const handleResetToLanding = () => {
+    clearActiveResumeDraft();
+    setResume(null);
+    setAtsResult(null);
+    setJdResult(null);
+    setAiResult(null);
   };
 
   // Update Resume in Builder
@@ -236,8 +247,18 @@ export function App() {
 
   const pendingBulletCount = aiResult ? aiResult.bulletSuggestions.filter(s => s.status === 'pending').length : 0;
 
+  const mobileNavPills: { id: NavTab; label: string }[] = [
+    { id: 'dashboard', label: 'Overview' },
+    { id: 'ats', label: 'ATS Breakdown' },
+    { id: 'jd', label: 'Job Matcher' },
+    { id: 'ai', label: 'AI Optimizer' },
+    { id: 'builder', label: 'Resume Builder' },
+    { id: 'history', label: 'History' },
+    { id: 'compare', label: 'Compare' }
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white overflow-x-hidden">
       
       {/* Top Navigation Bar */}
       <Navbar
@@ -255,7 +276,29 @@ export function App() {
         }}
         onOpenExport={() => setIsExportModalOpen(true)}
         onOpenSettings={() => setIsApiKeyModalOpen(true)}
+        onResetToLanding={handleResetToLanding}
+        onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        isMobileMenuOpen={isMobileMenuOpen}
       />
+
+      {/* Mobile Horizontal Quick-Nav Scroll Bar */}
+      {resume && (
+        <div className="md:hidden sticky top-14 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-2 py-2 overflow-x-auto no-scrollbar flex gap-1.5 shadow-md">
+          {mobileNavPills.map(pill => (
+            <button
+              key={pill.id}
+              onClick={() => setActiveTab(pill.id)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === pill.id
+                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/20'
+                  : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Main Layout Body */}
       {!resume ? (
@@ -271,7 +314,7 @@ export function App() {
         // Dashboard / Workspace View
         <div className="flex-1 flex flex-col md:flex-row max-w-7xl w-full mx-auto">
           
-          {/* Left Sidebar Navigation */}
+          {/* Left Sidebar Navigation (Desktop + Mobile Drawer) */}
           <Sidebar
             activeTab={activeTab}
             onSelectTab={setActiveTab}
@@ -279,14 +322,16 @@ export function App() {
             jdMatchScore={jdResult?.matchPercentage}
             criticalIssuesCount={atsResult?.criticalIssues.length || 0}
             pendingSuggestionsCount={pendingBulletCount}
+            isOpenMobile={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
           />
 
           {/* Center Workspace Content Area */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+          <main className="flex-1 p-3.5 sm:p-6 lg:p-8 overflow-y-auto space-y-6 max-w-full">
             
             {/* 1. OVERVIEW & HEALTH DASHBOARD */}
             {activeTab === 'dashboard' && atsResult && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-5 sm:space-y-6 animate-in fade-in">
                 <HealthCard
                   atsResult={atsResult}
                   onNavigateTab={setActiveTab}
@@ -309,7 +354,7 @@ export function App() {
 
             {/* 2. ATS ANALYSIS DEEP DIVE */}
             {activeTab === 'ats' && atsResult && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-5 sm:space-y-6 animate-in fade-in">
                 <ATSScoreCard atsResult={atsResult} />
                 <ATSRulesCheck
                   rules={atsResult.ruleChecks}
@@ -332,7 +377,7 @@ export function App() {
 
             {/* 4. AI OPTIMIZER & BULLETS */}
             {activeTab === 'ai' && aiResult && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-5 sm:space-y-6 animate-in fade-in">
                 <SummaryRewriter
                   summaryOpt={aiResult.summaryOpt}
                   onApplySummary={handleApplySummary}
@@ -366,7 +411,7 @@ export function App() {
                   history={history}
                   onLoadItem={handleLoadHistoryItem}
                   onDeleteItem={handleDeleteHistoryItem}
-                  onCompareWithCurrent={item => {
+                  onCompareWithCurrent={() => {
                     setActiveTab('compare');
                   }}
                 />
@@ -420,9 +465,4 @@ export function App() {
 
     </div>
   );
-}
-
-function setIsExportOpen(open: boolean) {
-  const event = new CustomEvent('toggle_export_modal', { detail: open });
-  window.dispatchEvent(event);
 }
